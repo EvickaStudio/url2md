@@ -1,0 +1,87 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "url2md API",
+    "version": "1.0.0",
+    "description": "Service that converts a URL to sanitized Markdown or JSON."
+  },
+  "servers": [{ "url": "/" }],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Liveness probe",
+        "responses": {
+          "200": { "description": "OK", "content": { "text/plain": { "schema": { "type": "string" }, "example": "ok" } } }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus metrics",
+        "responses": { "200": { "description": "Metrics" } }
+      }
+    },
+    "/v1/url-to-markdown": {
+      "get": {
+        "summary": "Convert URL to Markdown or JSON",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "uri" },
+            "description": "HTTP/HTTPS URL to fetch"
+          },
+          {
+            "name": "timeoutMs",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1000, "maximum": 60000 },
+            "description": "Per-request timeout in milliseconds (max 60000)"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["json", "markdown"] },
+            "description": "Force output format (otherwise via Accept header)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/markdown": { "schema": { "type": "string" } },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": { "type": "string" },
+                    "title": { "type": "string" },
+                    "markdown": { "type": "string" },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "byline": { "type": ["string", "null"] },
+                        "length": { "type": "integer" },
+                        "excerpt": { "type": ["string", "null"] },
+                        "siteName": { "type": ["string", "null"] },
+                        "dir": { "type": ["string", "null"] },
+                        "extractedAt": { "type": "string", "format": "date-time" },
+                        "processingMs": { "type": "integer", "description": "Time spent fetching + extracting + converting" }
+                      }
+                    }
+                  },
+                  "required": ["url", "markdown", "meta"]
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request" },
+          "429": { "description": "Rate limited" },
+          "502": { "description": "Upstream fetch/convert failed" }
+        }
+      }
+    }
+  }
+}
