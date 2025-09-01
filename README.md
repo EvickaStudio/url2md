@@ -8,7 +8,7 @@ Convert a url -> html -> markdown
 - Sanitization tailored for LLMs (remove links/media/attrs, keep structure)
 - OpenAPI docs at `/docs` and raw spec at `/openapi.json`
 - Optional Prometheus metrics at `/metrics` (enable with `ENABLE_METRICS=1`)
-- Security hardening: SSRF safeguards, rate limiting, secure headers
+- Security hardening: SSRF safeguards, secure headers
 - Concurrency limiter for stable throughput
 
 ## Docker (build and run)
@@ -75,8 +75,6 @@ bun run start
 - `PORT`: HTTP port (default 3000)
 - `MAX_CONCURRENCY`: Max concurrent conversions (default: CPU cores)
 - `MAX_TIMEOUT_MS`: Max per-request timeout cap (default 30000, max 60000)
-- `RATE_LIMIT_WINDOW_MS`: Rate-limit window (default 60000)
-- `RATE_LIMIT_MAX`: Requests per IP per window (default 60)
 - `TRUST_PROXY`: Express trust proxy setting (default `loopback`)
 - `WORKERS`: Number of cluster workers (default 1)
 - `USER_AGENT`: Override browser user agent

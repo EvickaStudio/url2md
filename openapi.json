@@ -78,7 +78,6 @@
             }
           },
           "400": { "description": "Bad request" },
-          "429": { "description": "Rate limited" },
           "502": { "description": "Upstream fetch/convert failed" }
         }
       }

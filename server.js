@@ -2,7 +2,6 @@ import express from "express";
 import pino from "pino";
 import helmet from "helmet";
 import compression from "compression";
-import rateLimit from "express-rate-limit";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -38,14 +37,7 @@ app.use(helmet({
 // gzip responses
 app.use(compression());
 
-// rate limiting
-const limiter = rateLimit({
-  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60_000,
-  max: Number(process.env.RATE_LIMIT_MAX) || 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
+// rate limiting removed (was causing 429s behind CDN). Reintroduce later if needed.
 
 // metrics (optional)
 let httpDuration = { startTimer: () => () => {} };
