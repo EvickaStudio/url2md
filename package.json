@@ -1,23 +1,24 @@
 {
   "name": "url2md",
-  "version": "1.0.0",
-  "description": "URL to Markdown service using Playwright + Readability + Turndown",
+  "version": "2.0.0",
+  "description": "Self-hosted search + content extraction API (SearXNG + Playwright + Readability → Markdown)",
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
     "@mozilla/readability": "^0.5.0",
     "compression": "^1.7.4",
-    "express": "^4.19.2",
+    "express": "^4.21.0",
     "helmet": "^7.1.0",
-    "jsdom": "^24.0.0",
     "ipaddr.js": "^2.2.0",
-    "prom-client": "^15.1.2",
+    "jsdom": "^24.0.0",
+    "pino": "^9.0.0",
     "playwright": "1.55.0",
+    "prom-client": "^15.1.2",
     "swagger-ui-express": "^5.0.1",
-    "turndown": "^7.2.0",
-    "pino": "^9.0.0"
+    "turndown": "^7.2.0"
   }
 }
