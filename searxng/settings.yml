@@ -1,11 +1,27 @@
-# SearXNG configuration – optimised for internal API usage
-use_default_settings: true
+# SearXNG – optimised for LLM API backend (url2md)
+# Uses `keep_only` to whitelist engines instead of loading ~50 defaults.
+
+use_default_settings:
+  engines:
+    keep_only:
+      - google
+      - duckduckgo
+      - brave
+      - wikipedia
+      - github
+      - stackoverflow
+      - google news
+      - arxiv          # kept but disabled; accessible via !arx bang
+      - google scholar # kept but disabled; accessible via !gs bang
 
 server:
   secret_key: "!!CHANGE_ME_VIA_SEARXNG_SECRET_KEY_ENV!!"
   limiter: false
   image_proxy: false
   method: "GET"
+
+redis:
+  url: redis://redis:6379/0   # was missing – needed for engine session tokens
 
 search:
   safe_search: 0
@@ -25,62 +41,54 @@ general:
   enable_metrics: false
 
 engines:
+  # -- fast, reliable web engines --
   - name: google
     engine: google
     shortcut: g
     disabled: false
     use_mobile_ui: false
-
-  - name: bing
-    engine: bing
-    shortcut: b
-    disabled: false
+    timeout: 4.0
 
   - name: duckduckgo
     engine: duckduckgo
     shortcut: ddg
     disabled: false
+    timeout: 4.0
 
   - name: brave
     engine: brave
     shortcut: br
     disabled: false
+    timeout: 4.0
 
-  - name: qwant
-    engine: qwant
-    shortcut: qw
-    disabled: false
-
+  # -- reference --
   - name: wikipedia
     engine: wikipedia
     shortcut: wp
     disabled: false
+    timeout: 3.0
 
-  - name: wikidata
-    engine: wikidata
-    shortcut: wd
-    disabled: true
-
-  - name: google news
-    engine: google_news
-    shortcut: gn
-    disabled: false
-
-  - name: bing news
-    engine: bing_news
-    shortcut: bn
-    disabled: false
-
+  # -- tech/code --
   - name: github
     engine: github
     shortcut: gh
     disabled: false
+    timeout: 4.0
 
   - name: stackoverflow
     engine: stackoverflow
     shortcut: so
     disabled: false
+    timeout: 4.0
 
+  # -- news --
+  - name: google news
+    engine: google_news
+    shortcut: gn
+    disabled: false
+    timeout: 4.0
+
+  # -- academic (off by default; available via !arx / !gs) --
   - name: arxiv
     engine: arxiv
     shortcut: arx
@@ -92,6 +100,6 @@ engines:
     disabled: true
 
 outgoing:
-  request_timeout: 5.0
-  max_request_timeout: 10.0
+  request_timeout: 4.0      # was 5.0 — engines silent past 4s rarely add value
+  max_request_timeout: 8.0  # was 10.0
   useragent_suffix: ""
