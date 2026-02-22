@@ -199,6 +199,8 @@ url2md is designed to be a self-hosted drop-in replacement for cloud scraping se
 Define the API endpoints as tools and let the model call them directly:
 
 ```python
+import requests
+
 tools = [
     {
         "type": "function",
@@ -246,12 +248,15 @@ def scrape_url(url: str) -> dict:
         "onlyMainContent": True,
     })
     return r.json()
+
+# (Add your client.chat.completions.create dispatch loop here)
 ```
 
 ### LangChain tools
 
 ```python
-from langchain.tools import tool
+from langchain_core.tools import tool
+import requests
 
 @tool
 def web_search(query: str) -> str:
@@ -275,24 +280,27 @@ def read_url(url: str) -> str:
     return r.get("data", {}).get("markdown", "Could not extract content.")
 
 # Use with any agent
-from langchain.agents import create_tool_calling_agent
+from langchain.agents import create_tool_calling_agent, AgentExecutor
 agent = create_tool_calling_agent(llm, [web_search, read_url], prompt)
+agent_executor = AgentExecutor(agent=agent, tools=[web_search, read_url])
+result = agent_executor.invoke({"input": "what is url2md?"})
 ```
 
 ### LlamaIndex
 
 ```python
 from llama_index.core.tools import FunctionTool
+import requests
 
 def search(query: str, limit: int = 5) -> str:
     """Search the web and return extracted Markdown content."""
-    r = requests.post("http://localhost:3000/v2/search", json={
+    response = requests.post("http://localhost:3000/v2/search", json={
         "query": query, "limit": limit,
         "scrapeOptions": {"formats": ["markdown"]},
     }).json()
     return "\n\n".join(
-        r["title"] + "\n" + r.get("markdown", r.get("description", ""))
-        for r in r.get("data", {}).get("web", [])
+        item["title"] + "\n" + item.get("markdown", item.get("description", ""))
+        for item in response.get("data", {}).get("web", [])
     )
 
 search_tool = FunctionTool.from_defaults(fn=search)
@@ -312,7 +320,8 @@ const HEADERS = {
 
 export const webSearch = tool({
   description: "Search the web and return results as Markdown. Use for current events or specific facts.",
-  parameters: z.object({
+  // Use `parameters` for AI SDK v4 and below, `inputSchema` for v5+
+  inputSchema: z.object({
     query: z.string().describe("Search query"),
     limit: z.number().int().min(1).max(20).default(5),
   }),
@@ -322,20 +331,21 @@ export const webSearch = tool({
       body: JSON.stringify({ query, limit, scrapeOptions: { formats: ["markdown"] } }),
     });
     const { data } = await res.json();
-    return data.web.map((r: any) => `# ${r.title}\n${r.url}\n\n${r.markdown ?? r.description}`).join("\n\n---\n\n");
+    return (data?.web ?? []).map((r: any) => `# ${r.title}\n${r.url}\n\n${r.markdown ?? r.description}`).join("\n\n---\n\n");
   },
 });
 
 export const scrapeUrl = tool({
   description: "Read the contents of a specific URL as clean Markdown.",
-  parameters: z.object({ url: z.string().url() }),
+  // Use `parameters` for AI SDK v4 and below, `inputSchema` for v5+
+  inputSchema: z.object({ url: z.string().url() }),
   execute: async ({ url }) => {
     const res = await fetch(`${BASE}/v2/scrape`, {
       method: "POST", headers: HEADERS,
       body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
     });
     const { data } = await res.json();
-    return data.markdown;
+    return data?.markdown ?? "Could not extract content.";
   },
 });
 ```
