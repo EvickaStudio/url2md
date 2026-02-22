@@ -1,81 +1,191 @@
-# url2md service
+# url2md API
 
-Convert a url -> html -> markdown
+Self-hosted web scraping and search API.  
+**Scrape** any URL to clean LLM-ready Markdown, **search** the web via SearXNG, or do **both in one call**.
 
-## Features
-
-- Playwright-based fetch with content extraction (Readability)
-- Sanitization tailored for LLMs (remove links/media/attrs, keep structure)
-- OpenAPI docs at `/docs` and raw spec at `/openapi.json`
-- Optional Prometheus metrics at `/metrics` (enable with `ENABLE_METRICS=1`)
-- Security hardening: SSRF safeguards, secure headers
-- Concurrency limiter for stable throughput
-
-## Docker (build and run)
-
-Build:
+## Quick Start
 
 ```bash
-docker build -t url2md:local .
+# 1. copy env template and fill in your values
+cp .env.example .env
+# generate a strong SearXNG secret key
+echo "SEARXNG_SECRET_KEY=$(openssl rand -hex 32)" >> .env
+
+# 2. launch the full stack
+docker compose up -d --build
+
+# 3. wait ~15s for SearXNG engines to initialise, then test
+curl http://localhost:3000/healthz            # → ok
+curl http://localhost:3000/health/deep        # → { status: "healthy", ... }
 ```
 
-Run:
+## API Reference
+
+Interactive docs: **http://localhost:3000/docs**
+
+### POST /v2/scrape
+
+Scrape a single URL and extract content as clean Markdown.
 
 ```bash
-docker run --rm -p 3000:3000 --ipc=host --shm-size=1g --name url2md url2md:local
+curl -X POST http://localhost:3000/v2/scrape \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com",
+    "formats": ["markdown"],
+    "onlyMainContent": true
+  }'
 ```
 
-Custom port:
-
-```bash
-docker run --rm -e PORT=8080 -p 8080:8080 url2md:local
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "markdown": "# Example Domain\n\nThis domain is for use in illustrative examples...",
+    "metadata": {
+      "title": "Example Domain",
+      "description": "...",
+      "language": "en",
+      "sourceURL": "https://example.com",
+      "statusCode": 200,
+      "siteName": "Example",
+      "image": "https://example.com/og.jpg",
+      "favicon": "https://example.com/favicon.ico"
+    }
+  }
+}
 ```
 
-## Health check and test
+The `markdown` field contains the **LLM-ready extracted content** of the page.  
+The `metadata` object provides display info (title, description, image, favicon) for rendering tool-call results in your app.
+
+### POST /v2/search
+
+Search the web via SearXNG. By default returns **snippets only** (fast). Add `scrapeOptions.formats` to also extract content from each result.
+
+#### Snippets only (no scraping)
 
 ```bash
-# liveness
-curl http://127.0.0.1:3000/healthz
-
-# markdown response (default when Accept: text/markdown)
-curl -H 'Accept: text/markdown' \
-  'http://127.0.0.1:3000/v1/url-to-markdown?url=https://example.com&timeoutMs=20000'
-
-# json response
-curl -H 'Accept: application/json' \
-  'http://127.0.0.1:3000/v1/url-to-markdown?url=https://example.com&format=json&timeoutMs=20000'
+curl -X POST http://localhost:3000/v2/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "EvickaStudio",
+    "limit": 5
+  }'
 ```
 
-Notes:
-- JSON responses include `meta.processingMs` (server-side processing time in milliseconds).
-
-Docs and metrics:
-
-```bash
-open http://127.0.0.1:3000/docs          # Swagger UI
-curl  http://127.0.0.1:3000/openapi.json  # raw OpenAPI
-# metrics require ENABLE_METRICS=1
-ENABLE_METRICS=1 curl http://127.0.0.1:3000/metrics
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "url": "https://github.com/EvickaStudio",
+        "title": "EvickaStudio (Erik) · GitHub",
+        "description": "I am a Computer Science & Software Engineering student...",
+        "position": 1,
+        "category": "web"
+      }
+    ]
+  }
+}
 ```
 
-## Development (local, no Docker)
+#### Search + scrape (extract content from each result)
 
 ```bash
-bun i
-# Install browsers once for local runs
+curl -X POST http://localhost:3000/v2/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "how does RLHF work",
+    "limit": 5,
+    "scrapeOptions": {
+      "formats": ["markdown", "links"]
+    }
+  }'
+```
+
+Response — each result now includes `markdown` and `links`:
+```json
+{
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "url": "https://...",
+        "title": "RLHF Explained",
+        "description": "Reinforcement Learning from Human Feedback...",
+        "position": 1,
+        "category": "web",
+        "markdown": "# RLHF Explained\n\n...",
+        "links": ["https://...", "https://..."]
+      }
+    ]
+  }
+}
+```
+
+## Authentication
+
+Set `API_KEYS` to enable:
+
+```bash
+API_KEYS=sk-key1,sk-key2 docker compose up -d
+```
+
+```bash
+curl -H 'Authorization: Bearer sk-key1' http://localhost:3000/v2/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"test"}'
+```
+
+## Proxy Support
+
+Pass a comma-separated list of proxy URLs. They are rotated round-robin per extraction:
+
+```env
+PROXY_LIST=http://user:pass@proxy1:8080,socks5://proxy2:1080
+```
+
+## Architecture
+
+```
+Client → [API Gateway: auth, cache, validation]
+              ├── POST /v2/search  → SearXNG + Playwright → Markdown per result
+              └── POST /v2/scrape  → Playwright (stealth) → Readability → Turndown
+```
+
+## Anti-Detection
+
+- Chromium with `--disable-blink-features=AutomationControlled`
+- Fast-fetch fallback for static pages (no browser needed)
+- `navigator.webdriver` patched, fake `window.chrome`
+- Randomised fingerprints per request (UA, viewport, timezone, locale)
+- Cookie consent auto-dismiss
+- Tracker/ad domain blocking
+- Optional proxy rotation
+
+## Development (no Docker)
+
+```bash
+npm install
 npx playwright install chromium
 
-# start the service
-bun run start
-# PORT=3001 bun run start   # to run on a custom port
+# start SearXNG separately or point to an existing instance
+SEARXNG_URL=http://localhost:8888 npm start
 ```
 
-### Configuration (env vars)
+## Load Testing
 
-- `PORT`: HTTP port (default 3000)
-- `MAX_CONCURRENCY`: Max concurrent conversions (default: CPU cores)
-- `MAX_TIMEOUT_MS`: Max per-request timeout cap (default 30000, max 60000)
-- `TRUST_PROXY`: Express trust proxy setting (default `loopback`)
-- `WORKERS`: Number of cluster workers (default 1)
-- `USER_AGENT`: Override browser user agent
-- `ENABLE_METRICS`: Expose `/metrics` and collect Prometheus metrics (default 0)
+```bash
+# scrape endpoint (default)
+./load_test.sh -e scrape -c 5 -n 25
+
+# search endpoint
+./load_test.sh -e search -q "AI news" -n 10
+
+# see all options
+./load_test.sh --help
+```

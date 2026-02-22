@@ -1,84 +1,634 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.1.0",
   "info": {
     "title": "url2md API",
-    "version": "1.0.0",
-    "description": "Service that converts a URL to sanitized Markdown or JSON."
+    "version": "2.0.0",
+    "description": "Self-hosted web scraping and search API. Extracts clean, LLM-ready Markdown from any URL via Playwright and Readability. Optionally searches the web via SearXNG and scrapes each result.",
+    "contact": {
+      "name": "EvickaStudio",
+      "url": "https://github.com/EvickaStudio/url2md"
+    },
+    "license": {
+      "name": "MIT"
+    }
   },
-  "servers": [{ "url": "/" }],
+  "servers": [
+    {
+      "url": "/",
+      "description": "Local / Docker"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Scraping",
+      "description": "Extract content from a single URL"
+    },
+    {
+      "name": "Search",
+      "description": "Search the web and extract content from results"
+    },
+    {
+      "name": "Health",
+      "description": "Service health checks"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Pass an API key as a Bearer token. Only required when API_KEYS env var is set."
+      }
+    },
+    "schemas": {
+      "Metadata": {
+        "type": "object",
+        "description": "Page metadata extracted from HTML meta tags. Only fields that exist on the page are included.",
+        "required": [
+          "title",
+          "sourceURL",
+          "statusCode"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Home | Evicka"
+          },
+          "description": {
+            "type": "string",
+            "example": "A portfolio and blog for designers and developers."
+          },
+          "language": {
+            "type": "string",
+            "example": "en"
+          },
+          "sourceURL": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://me.salted.win/"
+          },
+          "statusCode": {
+            "type": "integer",
+            "example": 200
+          },
+          "author": {
+            "type": "string",
+            "example": "Erik"
+          },
+          "generator": {
+            "type": "string",
+            "example": "Astro v5.16.4"
+          },
+          "keywords": {
+            "type": "string",
+            "example": "blog, portfolio, developer"
+          },
+          "siteName": {
+            "type": "string",
+            "example": "GitHub"
+          },
+          "ogType": {
+            "type": "string",
+            "example": "website"
+          },
+          "ogUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "image": {
+            "type": "string",
+            "format": "uri",
+            "description": "Open Graph image URL",
+            "example": "https://me.salted.win/open-graph.jpg"
+          },
+          "publishedTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "modifiedTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "canonicalURL": {
+            "type": "string",
+            "format": "uri"
+          },
+          "favicon": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://me.salted.win/favicon.svg"
+          }
+        }
+      },
+      "ScrapeData": {
+        "type": "object",
+        "description": "Extracted page data. Which fields are present depends on the requested formats.",
+        "required": [
+          "markdown",
+          "metadata"
+        ],
+        "properties": {
+          "markdown": {
+            "type": "string",
+            "description": "Clean Markdown with links preserved. This is the primary LLM-ready content."
+          },
+          "html": {
+            "type": "string",
+            "description": "Sanitized HTML of the extracted content. Present only when 'html' is in formats."
+          },
+          "rawHtml": {
+            "type": "string",
+            "description": "Original unmodified page HTML. Present only when 'rawHtml' is in formats."
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Deduplicated list of all absolute URLs found on the page. Present only when 'links' is in formats."
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          }
+        }
+      },
+      "SearchWebResult": {
+        "type": "object",
+        "description": "A single search result with optional extracted content.",
+        "required": [
+          "url",
+          "title",
+          "position",
+          "category"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Search engine snippet"
+          },
+          "position": {
+            "type": "integer",
+            "description": "1-indexed rank in results"
+          },
+          "category": {
+            "type": "string",
+            "example": "web"
+          },
+          "markdown": {
+            "type": "string",
+            "description": "Extracted Markdown content (when scrapeOptions provided)"
+          },
+          "html": {
+            "type": "string"
+          },
+          "rawHtml": {
+            "type": "string"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        }
+      },
+      "ScrapeRequest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The URL to scrape.",
+            "example": "https://example.com"
+          },
+          "formats": {
+            "type": "array",
+            "description": "Which output formats to include in the response.",
+            "default": [
+              "markdown"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "html",
+                "rawHtml",
+                "links"
+              ]
+            },
+            "example": [
+              "markdown",
+              "links"
+            ]
+          },
+          "onlyMainContent": {
+            "type": "boolean",
+            "default": true,
+            "description": "When true, uses Readability to extract only the main article content. When false, converts the full page."
+          }
+        }
+      },
+      "ScrapeResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ScrapeData"
+          }
+        }
+      },
+      "SearchRequest": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query string.",
+            "example": "how does RLHF work"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "maximum": 20,
+            "description": "Maximum number of search results."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "SearXNG engine sources to use.",
+            "example": [
+              "web"
+            ]
+          },
+          "scrapeOptions": {
+            "type": "object",
+            "description": "Options applied when scraping each search result.",
+            "properties": {
+              "formats": {
+                "type": "array",
+                "description": "Output formats. When empty or omitted, no scraping occurs and only SearXNG snippets are returned.",
+                "default": [],
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "markdown",
+                    "html",
+                    "rawHtml",
+                    "links"
+                  ]
+                }
+              },
+              "onlyMainContent": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "web"
+            ],
+            "properties": {
+              "web": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SearchWebResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Missing URL in request body."
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
   "paths": {
     "/healthz": {
       "get": {
+        "tags": [
+          "Health"
+        ],
         "summary": "Liveness probe",
+        "description": "Returns 'ok' if the service is running.",
+        "security": [],
         "responses": {
-          "200": { "description": "OK", "content": { "text/plain": { "schema": { "type": "string" }, "example": "ok" } } }
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "ok"
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/metrics": {
+    "/health/deep": {
       "get": {
-        "summary": "Prometheus metrics",
-        "responses": { "200": { "description": "Metrics" } }
-      }
-    },
-    "/v1/url-to-markdown": {
-      "get": {
-        "summary": "Convert URL to Markdown or JSON",
-        "parameters": [
-          {
-            "name": "url",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string", "format": "uri" },
-            "description": "HTTP/HTTPS URL to fetch"
-          },
-          {
-            "name": "timeoutMs",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "integer", "minimum": 1000, "maximum": 60000 },
-            "description": "Per-request timeout in milliseconds (max 60000)"
-          },
-          {
-            "name": "format",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "string", "enum": ["json", "markdown"] },
-            "description": "Force output format (otherwise via Accept header)"
-          }
+        "tags": [
+          "Health"
         ],
+        "summary": "Deep health check",
+        "description": "Checks browser pool and SearXNG connectivity.",
+        "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "All systems healthy",
             "content": {
-              "text/markdown": { "schema": { "type": "string" } },
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "url": { "type": "string" },
-                    "title": { "type": "string" },
-                    "markdown": { "type": "string" },
-                    "meta": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "healthy",
+                        "degraded"
+                      ]
+                    },
+                    "checks": {
                       "type": "object",
                       "properties": {
-                        "byline": { "type": ["string", "null"] },
-                        "length": { "type": "integer" },
-                        "excerpt": { "type": ["string", "null"] },
-                        "siteName": { "type": ["string", "null"] },
-                        "dir": { "type": ["string", "null"] },
-                        "extractedAt": { "type": "string", "format": "date-time" },
-                        "processingMs": { "type": "integer", "description": "Time spent fetching + extracting + converting" }
+                        "browser": {
+                          "type": "string"
+                        },
+                        "searxng": {
+                          "type": "string"
+                        }
                       }
                     }
-                  },
-                  "required": ["url", "markdown", "meta"]
+                  }
                 }
               }
             }
           },
-          "400": { "description": "Bad request" },
-          "502": { "description": "Upstream fetch/convert failed" }
+          "503": {
+            "description": "One or more systems degraded"
+          }
+        }
+      }
+    },
+    "/v2/scrape": {
+      "post": {
+        "tags": [
+          "Scraping"
+        ],
+        "summary": "Scrape a URL",
+        "description": "Fetches the given URL, extracts the main content using Readability, sanitizes it, and converts to clean Markdown with links preserved. Optionally returns HTML, raw HTML, or a list of all links found on the page.",
+        "operationId": "scrapeUrl",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScrapeRequest"
+              },
+              "examples": {
+                "basic": {
+                  "summary": "Basic markdown extraction",
+                  "value": {
+                    "url": "https://example.com",
+                    "formats": [
+                      "markdown"
+                    ],
+                    "onlyMainContent": true
+                  }
+                },
+                "withLinks": {
+                  "summary": "Markdown + link discovery",
+                  "value": {
+                    "url": "https://me.salted.win/",
+                    "formats": [
+                      "markdown",
+                      "links"
+                    ],
+                    "onlyMainContent": true
+                  }
+                },
+                "githubRepo": {
+                  "summary": "Scrape a GitHub repo",
+                  "value": {
+                    "url": "https://github.com/EvickaStudio/url2md",
+                    "formats": [
+                      "markdown",
+                      "links"
+                    ],
+                    "onlyMainContent": true
+                  }
+                },
+                "fullPage": {
+                  "summary": "Full page (no content filtering)",
+                  "value": {
+                    "url": "https://news.ycombinator.com",
+                    "formats": [
+                      "markdown",
+                      "links"
+                    ],
+                    "onlyMainContent": false
+                  }
+                },
+                "allFormats": {
+                  "summary": "All output formats",
+                  "value": {
+                    "url": "https://example.com",
+                    "formats": [
+                      "markdown",
+                      "html",
+                      "rawHtml",
+                      "links"
+                    ],
+                    "onlyMainContent": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Extraction successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Extraction failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/search": {
+      "post": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search the web (optionally scrape results)",
+        "description": "Searches the web via SearXNG. By default returns snippets only (fast). To also extract content from each result, pass scrapeOptions.formats with desired output formats (e.g. ['markdown']). When formats is empty or omitted, no scraping occurs.",
+        "operationId": "searchWeb",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              },
+              "examples": {
+                "snippetsOnly": {
+                  "summary": "Snippets only (no scraping, fast)",
+                  "value": {
+                    "query": "EvickaStudio",
+                    "limit": 5
+                  }
+                },
+                "basic": {
+                  "summary": "Search + scrape markdown",
+                  "value": {
+                    "query": "how does RLHF work",
+                    "limit": 5,
+                    "scrapeOptions": {
+                      "formats": [
+                        "markdown"
+                      ]
+                    }
+                  }
+                },
+                "withLinks": {
+                  "summary": "Search + scrape with links",
+                  "value": {
+                    "query": "best rust web frameworks 2025",
+                    "limit": 3,
+                    "scrapeOptions": {
+                      "formats": [
+                        "markdown",
+                        "links"
+                      ]
+                    }
+                  }
+                },
+                "quickSearch": {
+                  "summary": "Quick 2 results + markdown",
+                  "value": {
+                    "query": "Docker tutorial",
+                    "limit": 2,
+                    "scrapeOptions": {
+                      "formats": [
+                        "markdown"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search and extraction successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Search or extraction failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
         }
       }
     }

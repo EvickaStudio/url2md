@@ -1,0 +1,97 @@
+# SearXNG configuration – optimised for internal API usage
+use_default_settings: true
+
+server:
+  secret_key: "!!CHANGE_ME_VIA_SEARXNG_SECRET_KEY_ENV!!"
+  limiter: false
+  image_proxy: false
+  method: "GET"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "auto"
+  formats:
+    - html
+    - json
+
+ui:
+  default_locale: "en"
+  results_on_new_tab: false
+  static_use_hash: true
+
+general:
+  instance_name: "search-api"
+  enable_metrics: false
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+    use_mobile_ui: false
+
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false
+
+  - name: qwant
+    engine: qwant
+    shortcut: qw
+    disabled: false
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+
+  - name: wikidata
+    engine: wikidata
+    shortcut: wd
+    disabled: true
+
+  - name: google news
+    engine: google_news
+    shortcut: gn
+    disabled: false
+
+  - name: bing news
+    engine: bing_news
+    shortcut: bn
+    disabled: false
+
+  - name: github
+    engine: github
+    shortcut: gh
+    disabled: false
+
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: so
+    disabled: false
+
+  - name: arxiv
+    engine: arxiv
+    shortcut: arx
+    disabled: true
+
+  - name: google scholar
+    engine: google_scholar
+    shortcut: gs
+    disabled: true
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+  useragent_suffix: ""
