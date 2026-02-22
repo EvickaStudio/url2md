@@ -158,7 +158,10 @@ export function buildInitScript(profile) {
         'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650, OpenGL 4.5)',
       ];
       const vi = Math.floor(Math.random() * vendors.length);
-      for (const Proto of [WebGLRenderingContext, WebGL2RenderingContext]) {
+      const contexts = [];
+      if (typeof WebGLRenderingContext  !== 'undefined') contexts.push(WebGLRenderingContext);
+      if (typeof WebGL2RenderingContext !== 'undefined') contexts.push(WebGL2RenderingContext);
+      for (const Proto of contexts) {
         if (!Proto?.prototype) continue;
         const orig = Proto.prototype.getParameter;
         Proto.prototype.getParameter = function(param) {

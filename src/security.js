@@ -16,7 +16,8 @@ export function isPrivateIp(ip) {
   try {
     const addr = ipaddr.parse(ip);
     if (addr.kind() === "ipv6") {
-      if (addr.isLoopback() || addr.isLinkLocal() || addr.range() === "uniqueLocal") return true;
+      const r = addr.range();
+      if (["loopback", "linkLocal", "uniqueLocal"].includes(r)) return true;
       if (addr.isIPv4MappedAddress()) return isPrivateIp(addr.toIPv4Address().toString());
       return false;
     }

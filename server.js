@@ -48,9 +48,8 @@ if (cfg.enableMetrics) {
   });
 }
 
-const workLimiter   = new Limit(cfg.maxConcurrency);
-const searchCache   = new LRUCache(cfg.cacheMaxItems, cfg.cacheTtlMs);
-const extractCache  = new LRUCache(cfg.cacheMaxItems, cfg.cacheTtlMs);
+const workLimiter  = new Limit(cfg.maxConcurrency);
+const extractCache = new LRUCache(cfg.cacheMaxItems, cfg.cacheTtlMs);
 
 app.get("/healthz", (_, res) => res.send("ok"));
 
@@ -116,8 +115,10 @@ app.post("/v2/scrape", async (req, res) => {
     const data = await extractOne(url, opts);
     
     if (data.error) {
-      end({ code: 500 });
-      return res.status(500).json({ error: data.detail || data.error });
+      const clientError = ["blocked_url", "invalid_url", "unsupported_protocol"].includes(data.error);
+      const code = clientError ? 422 : 500;
+      end({ code });
+      return res.status(code).json({ error: data.error, detail: data.detail });
     }
 
     end({ code: 200 });
@@ -138,7 +139,10 @@ app.post("/v2/search", async (req, res) => {
       return res.status(400).json({ error: "Missing query." });
     }
 
-    const limit = Math.min(Number(body.limit) || 10, 20);
+    const _parsedLimit = Number(body.limit);
+    const limit = Number.isFinite(_parsedLimit) && _parsedLimit > 0
+      ? Math.min(Math.floor(_parsedLimit), 20)
+      : 10;
     const scrapeOpts = body.scrapeOptions || {};
     const extractOpts = {
       timeoutMs: cfg.maxTimeoutMs,

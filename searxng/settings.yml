@@ -2,7 +2,7 @@
 use_default_settings: true
 
 server:
-  secret_key: "change-me-generate-a-random-string-here"
+  secret_key: "!!CHANGE_ME_VIA_SEARXNG_SECRET_KEY_ENV!!"
   limiter: false
   image_proxy: false
   method: "GET"

@@ -6,8 +6,10 @@ Self-hosted web scraping and search API.
 ## Quick Start
 
 ```bash
-# 1. generate a SearXNG secret key
-sed -i "s/change-me-generate-a-random-string-here/$(openssl rand -hex 32)/" searxng/settings.yml
+# 1. copy env template and fill in your values
+cp .env.example .env
+# generate a strong SearXNG secret key
+echo "SEARXNG_SECRET_KEY=$(openssl rand -hex 32)" >> .env
 
 # 2. launch the full stack
 docker compose up -d --build

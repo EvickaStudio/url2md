@@ -72,7 +72,7 @@ function sanitizeForLLM(html, baseUrl) {
     const cap = fig.querySelector("figcaption");
     if (cap) {
       const p = document.createElement("p");
-      p.innerHTML = cap.innerHTML;
+      while (cap.firstChild) p.appendChild(cap.firstChild);
       fig.replaceWith(p);
     } else {
       fig.remove();
