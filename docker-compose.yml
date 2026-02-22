@@ -34,6 +34,7 @@ services:
       retries: 3
 
   url2md:
+    # image: ghcr.io/evickastudio/url2md:latest
     build: .
     container_name: url2md
     restart: unless-stopped
